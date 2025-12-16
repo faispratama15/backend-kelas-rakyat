@@ -1,8 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 const db = require('./db');
+const fs = require("fs");
+
+const uploadDir = "uploads/profile";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const multer = require("multer");
+const path = require("path");
+
 
 const app = express();
+app.use("/uploads", express.static("uploads"));
 app.use(cors());
 app.use(express.json());
 
@@ -143,19 +154,54 @@ app.delete("/api/users/:id", (req, res) => {
   });
 });
 
-//====kelas====;
-// GET semua kelas
-app.get('/api/kelas', (req, res) => {
-  const sql = 'SELECT * FROM kelas WHERE status = "aktif"';
-  db.query(sql, (err, results) => {
-    if (err) {
-      console.error('Gagal mengambil data kelas:', err);
-      return res.status(500).json({ error: 'Gagal mengambil data kelas' });
-    }
-    res.json(results);
-  });
+//foto profile
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/profile");
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, Date.now() + ext);
+  },
 });
 
+const upload = multer({ storage });
+
+
+app.post(
+  "/api/update-profile-photo",
+  upload.single("foto_profil"),
+  (req, res) => {
+    const { user_id } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ message: "File tidak ditemukan" });
+    }
+
+    const photoPath = `/uploads/profile/${req.file.filename}`;
+
+    db.query(
+      "UPDATE users SET foto_profil = ? WHERE id = ?",
+      [photoPath, user_id],
+      (err) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        res.json({
+          message: "✅ Foto profil berhasil diupdate",
+          foto_profil: photoPath,
+        });
+      }
+    );
+  }
+);
+
+
+
+//====kelas====;
+// GET semua kela
 //get kelas berdasarkan id
 app.get("/api/kelas/:id", (req, res) => {
   const { id } = req.params;
